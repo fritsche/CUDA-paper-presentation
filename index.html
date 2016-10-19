@@ -160,7 +160,7 @@
         ### What is Reverse Polish Notation?
       ]
       .right-column[
-        * In RPN the operators follow theirs operands
+        * In RPN the operators follow their operands
             * For instance `3 + 4` is `3 4 +`
 
 
@@ -198,6 +198,125 @@
         <img src="EvolutionaryAlgorithm.png" height="420"/>
 
       ]
+
+      ---
+
+      Background
+      ==========
+      .left-column[
+        ### What is Reverse Polish Notation?
+        ### What is Genetic Programming?
+      ]
+      .right-column[
+
+        * Tree-based representation 
+
+
+        * The **fitness** of each individual could be calculated independently in **parallel**
+            
+        <img src="Tree.png" height="380"/>
+
+      ]
+
+      ---
+
+      Background
+      ==========
+      .left-column[
+        ### What is Reverse Polish Notation?
+        ### What is Genetic Programming?
+        ### What is Multiplexor?
+      ]
+      .right-column[
+
+        * A Multiplexor is a software or hardware that for many inputs return only one output.
+        * The output is based on the input and a selector
+        * Several applications in electronics and signal processing and others
+
+        <img src="6mux.png" height="300"/>
+
+      ]
+
+      ---
+
+      template:inverse
+
+      ### For the Multiplexor problem the question is:
+
+      ## Given the **input** and the expected **output**, <br/> which is the program?
+
+      ---
+
+      Introduction
+      ============
+
+      ### **Interpret** and **evaluate** the population (of trees) in **parallel**
+      * **Terminals:** 20 or 37 boolean inputs (D0 - D36)
+      * **Functions:** AND, OR, NAND, NOR
+      * **Fitness:** Correctness on pseudo random sample of 2,048 of 1,048,576 (for 20-mux) or 8,192 of 137,438,953,472 (for 37-mux) fitness cases.
+      * **Tournament:** 4 members run on same random sample. New samples for each tournament and each generation.
+      * **Population:** 262,144
+      * **Initial Population:** Random tree generation (eg ramped-half-and-half)
+      * **Parameters:** 
+        * 50% subtree crossover
+        * 5% subtree 
+        * 45% point mutation
+        * Max depth 15
+        * Max size 511 (20-Mux) or 1,023 (37-Mux)
+      * **Termination:** 5,000 generations
+
+
+
+
+      ---
+
+      Introduction
+      ============
+
+      ### There are two main approaches for running genetic programming in GPU:
+
+      1. **Compile** the evolved programs and running multiple fitness cases in parallel
+          
+          1.1 Overhead of running the compiler in the host
+      2. **Interpreting** multiple programs in parallel.
+          
+          2.1 Can run the program immediately
+
+          2.2 The interpreted code is slower than the optimised compiler generated machine code
+
+          2.3 This is the approach used in this work
+      3. Mixtures are possible
+
+      ---
+
+      Results
+      =======
+
+      ### Solutions are found in generations 423 (20-Mux) and 2,866 (37-Mux).
+
+
+      <img src="generationsvsfitness.png" height="430"/>
+
+      ---
+
+      Conclusion
+      ========== 
+
+      * Solved the 20-bits Multiplexor
+          * 1,048,576 fitness cases
+          * Has never been solved by tree GP before
+          * Previously estimated time: more than **4 years**
+          * GPU has consistently done it in less than **an hour**
+
+      * Solved the 37-bits Multiplexor
+          * 137,438,953,472 fitness cases
+          * Has never been attempted before
+          * GPU solves it in under **a day**
+
+      ---
+
+      template: inverse
+      #Thanks
 
     </textarea>
     <script src="https://gnab.github.io/remark/downloads/remark-latest.min.js">
