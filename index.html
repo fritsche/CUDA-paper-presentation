@@ -34,6 +34,9 @@
         position: absolute;
         bottom: 3em;
       }
+      .my-text-larger {
+        font-size: 1.4em;
+      }
       li p { line-height: 1.25em; }
       .red { color: #fa0000; }
       .large { font-size: 2em; }
@@ -117,13 +120,19 @@
         height: 92%;
         float: left;
       }
-        .left-column h2:last-of-type, .left-column h3:last-child {
-          color: #000;
-        }
+      .left-column h2:last-of-type, .left-column h3:last-child {
+        color: #000;
+      }
       .right-column {
         width: 75%;
         float: right;
         padding-top: 1em;
+      }
+      .new-right-column {
+        width: 75%;
+        float: right;
+        padding-top: 1em;
+        text-align: right;
       }
     </style>
   </head>
@@ -145,11 +154,20 @@
       Agenda
       ======
 
+      .my-text-larger[
       1. Abstract
-      2. Background
-
-        2.1 What is Reverse Polish Notation?
-      3. asdf
+      1. Background
+        * What is Reverse Polish Notation?
+        * What is Genetic Programming?
+        * What a Multiplexor?
+      1. Introduction
+      1. Genetic Programming Interpreter
+      1. Examples
+      1. Methodology
+      1. Results
+      1. Conclusion
+      1. Questions
+      ]
 
       ---
 
@@ -246,6 +264,22 @@
 
       ]
 
+
+      ---
+
+      Background
+      ==========
+      .left-column[
+        ### What is Reverse Polish Notation?
+        ### What is Genetic Programming?
+        ### What is Multiplexor?
+      ]
+      .right-column[
+
+        <img src="boolean20mux.png" height="400" />      
+      
+      ] 
+      
       ---
 
       template:inverse
@@ -253,29 +287,6 @@
       ### For the Multiplexor problem the question is:
 
       ## Given the **input** and the expected **output**, <br/> which is the program?
-
-      ---
-
-      Introduction
-      ============
-
-      ### **Interpret** and **evaluate** the population (of trees) in **parallel**
-      * **Terminals:** 20 or 37 boolean inputs (D0 - D36)
-      * **Functions:** AND, OR, NAND, NOR
-      * **Fitness:** Correctness on pseudo random sample of 2,048 of 1,048,576 (for 20-mux) or 8,192 of 137,438,953,472 (for 37-mux) fitness cases.
-      * **Tournament:** 4 members run on same random sample. New samples for each tournament and each generation.
-      * **Population:** 262,144
-      * **Initial Population:** Random tree generation (eg ramped-half-and-half)
-      * **Parameters:** 
-        * 50% subtree crossover
-        * 5% subtree 
-        * 45% point mutation
-        * Max depth 15
-        * Max size 511 (20-Mux) or 1,023 (37-Mux)
-      * **Termination:** 5,000 generations
-
-
-
 
       ---
 
@@ -298,29 +309,196 @@
 
       ---
 
-      Results
-      =======
+      Introduction
+      ============
+      
+      ### Interpreting  many programs simultaneously      
 
-      ### Solutions are found in generations 423 (20-Mux) and 2,866 (37-Mux).
+      .left-column[  
+        <img src="simd_interpreter.gif"/>
+      ]
+      .right-column[
+        * Data is pushed onto stack before operations pop them (i.e. reverse polish. x+y → x y +)
+        * The tree is stored as linear expression in reverse polish.
+        * Same structure on CPU as GPU.
+            * Avoid explicit format conversion when population is loaded onto GPU.
+        * Genetic operations act on reverse polish:
+            * random tree generation (eg ramped-half-and-half)
+            * subtree crossover
+            * 2 types of mutation
+        * Requires only one byte per leaf or function.
+            * So large populations (millions of individuals) are possible.
+      ]
+
+      ---
+
+      Genetic Programming Interpreter
+      ===============================
+      
+      <img align="right" src="rpnexample.png" height="225"/>
+
+      .left-column[
+        <img src="interpreter_loop.gif" width="225" />
+      ]
+      .right-column[
+        
+        * Variable (terminal): push onto stack
+        * Function: pop arguments, do operation, push result back
+        * 1 stack per program
+        * All stacks in **shared memory**
+
+      ]
+
+      ---
+
+      Boolean Operators
+      =================
+
+      ### AND, OR, NAND, NOR
+
+      <img src="binops.png" height="350" />      
+
+      ---
+
+      #Examples
+
+      ### 6-mux problem possible solution I
+
+      <img src="example1.png" height="250" />      
+
+      ---
+
+      #Examples
+
+      ### 6-mux problem possible solution II
+
+      <img src="example2.png" height="300" />      
+
+      ---
+
+      #Examples
+
+      ### 6-mux problem possible solution III
+
+      <img src="example3.png" height="200" />      
+
+      ---
+
+      #Examples
+
+      ### 6-mux Ideal solution
+
+      <img src="ideal.png" height="350px" />      
+
+      ---
+
+      Methodology
+      ============
+
+      ### **Interpret** and **evaluate** the population (of trees) in **parallel**
+     
+      <img src="table.png" height="280" />
+
+      ---
+
+      #Methodology
+      
+      .my-text-larger[
+        
+      * Put stack in fast shared memory
+          * The delay in reading from off-chip memory is hundreds of times more than access to on-chip memory.
+      * Randomised testing
+      * Choice between sequential and parallel
+      * Use 1↔256 threads per block 
+          * Reduce by parallel sum into one fitness value.
+          * Siebert's bit count (replaces 32 loops)
+      * 1 Program in fast read-only global memory
+      * Interprets 261,000,000,000 GP primitives per sec
+      * (670 billion per second sustained peak)
+      * GPU is only used for fitness evaluation
+      * Doubtless some efficiencies could be made to reduce the host side overhead.
+
+      ]
+
+      ---
+
+      # The interpreter function
+
+      ````c
+      __device__ inline int runprog(unsigned char* const Pop,const unsigned int prog,
+        const unsigned int test32, const int LEN) {
+      #define AND(A,B)  ((A) & (B))
+      #define OR(A,B)   ((A) | (B))
+      #define SETOPCODE const optype opcode = Pop[PC+(prog*LEN)]
+      #define OPCODE opcode
+      #define push(x) {stack(SP) = x; SP++;}
+        settop;
+        setstack;
+        int SP = 0;
+        for(unsigned int PC = 0; /*PC < LEN-1*/; PC++){
+          SETOPCODE;
+          if(OPCODE==OPNOP) break;
+          const int type = (OPCODE>>5);
+          if(type==(firstinput>>5)) {push(train[OPCODE & 7]);} //OP1
+          else if(type==(inputd5>>5)) {
+            const unsigned int t  = (OPCODE & 31); //ninputs <= 37bits
+            const unsigned int t2 = test32 & pow2[t];
+            push(train2[t2 == pow2[t]]); //OP1
+          } else {
+            const unsigned int sp1 = stack(SP-1);
+            const unsigned int sp2 = stack(SP-2);
+            SP -= 2;
+            if(type==(OPAND>>5)) {push(AND(sp1,sp2));}
+            else if(type==(OPOR>>5)) push(OR(sp1,sp2));
+            if(OPCODE==OPNAND||OPCODE==OPNOR) stack(SP-1) = ~stack(SP-1);
+          }
+        }return 0;}
+      ````
+
+      ---
+      
+      ## Solutions are found in generations 423 (20-Mux) and 2,866 (37-Mux).
 
 
-      <img src="generationsvsfitness.png" height="430"/>
+      <img src="generationsvsfitness.png" height="450"/>
+
+      ---
+
+      ## Performance vs Threads.
+      
+      <img src="performancevsthreads.png" height="450"/>
+
+      **Divergence is a major source of inefficiency**  
 
       ---
 
       Conclusion
       ========== 
 
+      .my-text-larger[
+        
       * Solved the 20-bits Multiplexor
           * 1,048,576 fitness cases
           * Has never been solved by tree GP before
           * Previously estimated time: more than **4 years**
           * GPU has consistently done it in less than **an hour**
-
       * Solved the 37-bits Multiplexor
           * 137,438,953,472 fitness cases
           * Has never been attempted before
           * GPU solves it in under **a day**
+      ]
+    
+      ---
+  
+      # Questions
+
+      .my-text-larger[    
+
+      1. How is generated the training data?
+      2. How Ramped-half-and-half method generates the trees?
+      3. What is Siebert's bit count?
+
+      ]
 
       ---
 
